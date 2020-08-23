@@ -1,0 +1,173 @@
+using System;
+using System.Collections.Generic;
+using System.Data.SqlClient;
+using System.Linq;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.VisualStudio.Web.CodeGeneration.DotNet;
+using Sabio.Models;
+using Sabio.Models.Domain;
+using Sabio.Models.Requests.Addresses;
+using Sabio.Services;
+using Sabio.Web.Controllers;
+using Sabio.Web.Models.Responses;
+
+namespace Sabio.Web.Api.Controllers
+{
+    [Route("api/addresses")]
+    [ApiController]
+    public class AddressApiController : BaseApiController
+    {
+        private IAddressesService _service = null;
+        private IAuthenticationService<int> _authService = null;
+        public AddressApiController(IAddressesService service
+            , ILogger<AddressApiController> logger
+            , IAuthenticationService<int>  authService) : base(logger)
+        {
+            _service = service;
+            _authService = authService;
+        }
+
+        //GET api/addresses/"" empty endpoint that returns nothing
+        [HttpGet]
+        public ActionResult<ItemsResponse<Address>> GetAll()
+        {
+            int code = 200;
+            BaseResponse response = null;
+
+            try
+            {
+                List<Address> list = _service.GetTop();
+
+                if (list == null)
+                {
+                    code = 404;
+                    response = new ErrorResponse("App Resource not found");
+                }
+                else
+                {
+                    response = new ItemsResponse<Address> { Items = list };
+                }
+            }
+            catch (Exception ex)
+            {
+                code = 500;
+                response = new ErrorResponse(ex.Message);
+                base.Logger.LogError(ex.ToString());
+            }
+
+            return StatusCode(code, response);
+
+        }
+
+        //api/address/{id:int}
+        [HttpGet("{id:int}")]
+        public ActionResult<ItemResponse<Address>> GetById(int id)
+        {
+            int iCode = 200;
+            BaseResponse response = null;
+
+            try
+            {
+                Address address = _service.Get(id);
+
+
+
+                if (address == null)
+                {
+                    iCode = 404;
+                    response = new ErrorResponse("Application resource not found");
+
+                }
+                else
+                {
+                    response = new ItemResponse<Address> { Item = address };
+                }
+
+            }
+            catch (SqlException sqlEx)
+            {
+                iCode = 500;
+                response = new ErrorResponse(sqlEx.Message);
+                base.Logger.LogError(sqlEx.ToString());
+
+
+            }
+            catch (ArgumentException argEx)
+            {
+
+                iCode = 500;
+                response = new ErrorResponse(argEx.Message);
+
+
+            }
+            catch (Exception ex)
+            {
+                iCode = 500;
+
+                base.Logger.LogError(ex.ToString());
+                response = new ErrorResponse(ex.Message);
+
+            }
+
+
+            return StatusCode(iCode, response);
+
+        }
+
+
+        [HttpDelete("{id:int}")]
+        public ActionResult<SuccessResponse> Delete(int id)
+        {
+            int code = 200;
+            BaseResponse response = null;
+
+            try
+            {
+                _service.Delete(id);
+
+                response = new SuccessResponse();
+            }
+            catch (Exception ex)
+            {
+                code = 500;
+                response = new ErrorResponse(ex.Message);
+                
+            }
+
+            return StatusCode(code, response);
+        }
+
+
+        [HttpPost]
+        public ActionResult<ItemResponse<int>> Create(AddressAddRequest model)
+        {
+            //id of new address
+            int userId = _authService.GetCurrentUserId();
+            IUserAuthData user = _authService.GetCurrentUser();
+
+            int id = _service.Add(model);
+
+            ItemResponse<int> response = new ItemResponse<int>();
+
+            response.Item = id;
+
+            return Ok(response);
+        }
+
+        [HttpPut("{id:int}")]
+        public ActionResult<ItemResponse<int>> Update(AddressUpdateRequest model)
+        {
+            //id of new address
+            _service.Update(model);
+
+            SuccessResponse response = new SuccessResponse();
+
+            return Ok(response);
+        }
+
+    }
+}
